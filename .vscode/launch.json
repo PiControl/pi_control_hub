@@ -3,17 +3,14 @@
     // Hover to view descriptions of existing attributes.
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
-    "configurations": [
-        {
-            "name": "Launch PiControl Hub",
+    "configurations": [{
+            "name": "PiControl Hub",
             "type": "debugpy",
             "request": "launch",
-            "module": "uvicorn",
+            "module": "pi_control_hub.main",
             "args": [
-                "pi_control_hub.main:app",
-                "--reload"
-            ],
-            "jinja": true
+                "--config-path=~/temp/pi-control-hub"
+            ]
         }
     ]
 }

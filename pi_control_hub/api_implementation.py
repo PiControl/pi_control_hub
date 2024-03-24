@@ -16,6 +16,7 @@
 
 from typing import List
 
+from fastapi import HTTPException
 from pi_control_hub_api.apis.default_api_base import BaseDefaultApi
 from pi_control_hub_api.models.device_command import DeviceCommand
 from pi_control_hub_api.models.device_driver import DeviceDriver
@@ -27,21 +28,39 @@ from pi_control_hub_api.models.remote_layout import RemoteLayout
 from pi_control_hub_api.models.start_pairing_request import StartPairingRequest
 from pi_control_hub_api.models.start_pairing_response import StartPairingResponse
 
-from pi_control_hub.plugin_manager import PluginManager
+from pi_control_hub.driver_manager import DriverManager, DriverNotFoundException
 
 class PiControlHubApi(BaseDefaultApi):
     """Implementation of the PiControl Hub REST API."""
 
     def read_device_drivers(self) -> List[DeviceDriver]:
         """Read all installed device drivers"""
-        # TODO
-        plugins = PluginManager().retrieve_plugins()
-        return [DeviceDriver(driverId="ABCD", displayName="NAME", description="TEST", authenticationMethod="NONE")]
+        driver_descriptors = DriverManager().retrieve_drivers()
+        drivers = map(
+            lambda descriptor: DeviceDriver(
+                driverId=str(descriptor.driver_id),
+                displayName=descriptor.display_name,
+                description=descriptor.description,
+                authenticationMethod=descriptor.authentication_method.name,
+            ),
+            driver_descriptors,
+        )
+        return list(drivers)
 
     def read_devices(self, driverId: str) -> List[DeviceInfo]:
         """Read all devices that are supported by the driver with the given driver ID"""
-        # TODO
-        return []
+        try:
+            driver_descriptor = DriverManager().retrieve_driver(driverId)
+            result = map(
+                lambda dinfo: DeviceInfo(
+                    deviceId=dinfo.device_id,
+                    name=dinfo.name,
+                ),
+                driver_descriptor.get_devices(),
+            )
+            return result
+        except DriverNotFoundException as ex:
+            raise HTTPException(status_code=404, detail=str(ex)) from ex
 
     def start_pairing(
         self,
