@@ -63,12 +63,15 @@ def create_argsparser() -> argparse.ArgumentParser:
     return parser
 
 
-app = FastAPI(
-    title="PiControl Hub",
-    description="The PiControl Hub server",
-    version=__version__,
-)
-app.include_router(DefaultApiRouter)
+def create_app() -> FastAPI:
+    """Create the FastAPI app."""
+    app = FastAPI(
+        title="PiControl Hub",
+        description="The PiControl Hub server",
+        version=__version__,
+    )
+    app.include_router(DefaultApiRouter)
+    return app
 
 def main():
     """Entry point of the server."""
@@ -77,6 +80,7 @@ def main():
 
     DeviceDriverDescriptor.set_config_path(os.path.expanduser(args.config_path))
 
+    app = create_app()
     uvicorn.run(app, host=args.ip_address, port=int(args.port))
 
 if __name__ == "__main__":
