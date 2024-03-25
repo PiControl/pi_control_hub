@@ -109,10 +109,24 @@ def advertise_service(instance_name: str, ip_address: str, port: int):
     return zconf
 
 
+def validate_args(args: argparse.ArgumentParser):
+    """Validates the arguments."""
+    cfg_path = os.path.expanduser(args.config_path)
+    if cfg_path != os.path.abspath(cfg_path):
+        raise ValueError("The value of the argument --config-path is not an absolute path.")
+
+    db_path = os.path.join(cfg_path, args.db_filename)
+    if db_path != os.path.abspath(db_path):
+        raise ValueError("The value of the argument --db-filename contains relative path spcifiers.")
+
+
+
 def main():
     """Entry point of the server."""
     args_parser = create_argsparser()
     args, _ = args_parser.parse_known_args(sys.argv)
+
+    validate_args(args)
 
     DeviceDriverDescriptor.set_config_path(os.path.expanduser(args.config_path))
 
