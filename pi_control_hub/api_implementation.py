@@ -28,9 +28,10 @@ from pi_control_hub_api.models.remote_layout import RemoteLayout
 from pi_control_hub_api.models.start_pairing_request import StartPairingRequest
 from pi_control_hub_api.models.start_pairing_response import StartPairingResponse
 
+from pi_control_hub.design_patterns import SingletonMeta
 from pi_control_hub.driver_manager import DriverManager, DriverNotFoundException
 
-class PiControlHubApi(BaseDefaultApi):
+class PiControlHubApi(BaseDefaultApi, metaclass=SingletonMeta):
     """Implementation of the PiControl Hub REST API."""
 
     def read_device_drivers(self) -> List[DeviceDriver]:
