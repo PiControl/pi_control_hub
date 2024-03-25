@@ -18,6 +18,7 @@ from peewee import Database, SqliteDatabase
 
 from pi_control_hub.design_patterns import SingletonMeta
 
+
 class DatabaseManager(metaclass=SingletonMeta):
     """Singleton that holds the database connection."""
     def __init__(self, database_path: str):
