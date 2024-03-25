@@ -28,6 +28,8 @@ from fastapi import FastAPI
 from pi_control_hub_api.apis.default_api import router as DefaultApiRouter
 from pi_control_hub_driver_api import DeviceDriverDescriptor
 
+from pi_control_hub.database_manager import DatabaseManager
+
 from .api_implementation import PiControlHubApi
 from . import __version__
 
@@ -120,7 +122,6 @@ def validate_args(args: argparse.ArgumentParser):
         raise ValueError("The value of the argument --db-filename contains relative path spcifiers.")
 
 
-
 def main():
     """Entry point of the server."""
     args_parser = create_argsparser()
@@ -131,6 +132,7 @@ def main():
     DeviceDriverDescriptor.set_config_path(os.path.expanduser(args.config_path))
 
     zconf = advertise_service(args.instance_name, args.ip_address, int(args.port))
+    db_man = DatabaseManager(os.path.join(os.path.expanduser(args.config_path), args.db_filename))
     app = create_app()
     uvicorn.run(app, host=args.ip_address, port=int(args.port))
 
