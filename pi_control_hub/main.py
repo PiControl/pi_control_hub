@@ -18,8 +18,10 @@
 
 import os
 import argparse
+import socket
 import sys
 import uvicorn
+import zeroconf
 
 from fastapi import FastAPI
 
@@ -28,6 +30,13 @@ from pi_control_hub_driver_api import DeviceDriverDescriptor
 
 from .api_implementation import PiControlHubApi
 from . import __version__
+
+
+def get_ip_address() -> str:
+    """Returns the IP address of this machine."""
+    hostname = socket.gethostname()
+    return socket.gethostbyname(hostname)
+
 
 
 def create_argsparser() -> argparse.ArgumentParser:
@@ -39,7 +48,7 @@ def create_argsparser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--ip-address",
         action="store",
-        default="0.0.0.0",
+        default=get_ip_address(),
         help="The IP address from which the server is listining.",
     )
     parser.add_argument(
@@ -60,6 +69,12 @@ def create_argsparser() -> argparse.ArgumentParser:
         default="pi-control-hub.db",
         help="The name of the database file with any path component. The database is created in the configuration directory.",
     )
+    parser.add_argument(
+        "--instance-name",
+        action="store",
+        default="Pi Control Hub",
+        help="The name of this instance.",
+    )
     return parser
 
 
@@ -73,6 +88,27 @@ def create_app() -> FastAPI:
     app.include_router(DefaultApiRouter)
     return app
 
+
+def advertise_service(instance_name: str, ip_address: str, port: int):
+    """Advertises this service via Zeroconf."""
+    if ip_address == "127.0.0.1" or ip_address == "0.0.0.0":
+        return None
+    zc_type = "_pi-ctrl-hub._tcp.local."
+    fq_hostname = socket.getfqdn()
+    service_name = f"{instance_name}.{zc_type}"
+    zc_info = zeroconf.ServiceInfo(
+        zc_type,
+        service_name,
+        addresses=[socket.inet_aton(ip_address)],
+        port=port,
+        properties={"url": f"http://{fq_hostname}:{port}"},
+        server=fq_hostname,
+    )
+    zconf = zeroconf.Zeroconf()
+    zconf.register_service(zc_info)
+    return zconf
+
+
 def main():
     """Entry point of the server."""
     args_parser = create_argsparser()
@@ -80,6 +116,7 @@ def main():
 
     DeviceDriverDescriptor.set_config_path(os.path.expanduser(args.config_path))
 
+    zconf = advertise_service(args.instance_name, args.ip_address, int(args.port))
     app = create_app()
     uvicorn.run(app, host=args.ip_address, port=int(args.port))
 
