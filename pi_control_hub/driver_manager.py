@@ -15,8 +15,10 @@
 """
 
 from typing import List
+from cachetools import TTLCache
 from pi_control_hub_driver_api import installed_drivers
 from pi_control_hub_driver_api import DeviceDriverDescriptor
+from pi_control_hub_driver_api import DeviceInfo
 from pi_control_hub.design_patterns import SingletonMeta
 
 
@@ -34,7 +36,10 @@ class DriverManager(metaclass=SingletonMeta):
     PiControl Hub drivers.
     """
 
-    def retrieve_drivers(self) -> List[DeviceDriverDescriptor]:
+    def __init__(self):
+        self._cache = TTLCache(maxsize=10, ttl=300)
+
+    def read_drivers(self) -> List[DeviceDriverDescriptor]:
         """This method returns DeviceDriverDescriptor instances of the
         installed drivers."""
         return installed_drivers()
@@ -44,9 +49,21 @@ class DriverManager(metaclass=SingletonMeta):
         result = list(
             filter(
                 lambda descriptor: str(descriptor.driver_id) == driver_id,
-                self.retrieve_drivers(),
+                self.read_drivers(),
             )
         )
-        if result.count() > 0:
+        if len(result) > 0:
             return result[0]
         raise DriverNotFoundException(driver_id)
+
+    def read_devices(self, driver_id: str) -> List[DeviceInfo]:
+        """Read the devices from a driver."""
+        cache_key = f"devices({driver_id})"
+        
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+
+        driver_descriptor = self.retrieve_driver(driver_id)
+        devices = driver_descriptor.get_devices()
+        self._cache[cache_key] = devices
+        return devices

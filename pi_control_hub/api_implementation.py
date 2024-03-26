@@ -36,7 +36,7 @@ class PiControlHubApi(BaseDefaultApi, metaclass=SingletonMeta):
 
     def read_device_drivers(self) -> List[DeviceDriver]:
         """Read all installed device drivers"""
-        driver_descriptors = DriverManager().retrieve_drivers()
+        driver_descriptors = DriverManager().read_drivers()
         drivers = map(
             lambda descriptor: DeviceDriver(
                 driverId=str(descriptor.driver_id),
@@ -51,13 +51,14 @@ class PiControlHubApi(BaseDefaultApi, metaclass=SingletonMeta):
     def read_devices(self, driverId: str) -> List[DeviceInfo]:
         """Read all devices that are supported by the driver with the given driver ID"""
         try:
-            driver_descriptor = DriverManager().retrieve_driver(driverId)
-            result = map(
-                lambda dinfo: DeviceInfo(
-                    deviceId=dinfo.device_id,
-                    name=dinfo.name,
-                ),
-                driver_descriptor.get_devices(),
+            result = list(
+                    map(
+                    lambda dinfo: DeviceInfo(
+                        deviceId=dinfo.device_id,
+                        name=dinfo.name,
+                    ),
+                    DriverManager().read_devices(driverId),
+                )
             )
             return result
         except DriverNotFoundException as ex:

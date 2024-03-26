@@ -28,6 +28,8 @@ from fastapi import FastAPI
 from pi_control_hub_api.apis.default_api import router as DefaultApiRouter
 from pi_control_hub_driver_api import DeviceDriverDescriptor
 
+from pi_control_hub.database import Shelve
+
 from .api_implementation import PiControlHubApi
 from . import __version__
 
@@ -66,7 +68,7 @@ def create_argsparser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--db-filename",
         action="store",
-        default="pi-control-hub.db",
+        default="pi-control-hub.store",
         help="The name of the database file with any path component. The database is created in the configuration directory.",
     )
     parser.add_argument(
@@ -128,11 +130,12 @@ def main():
     validate_args(args)
 
     DeviceDriverDescriptor.set_config_path(os.path.expanduser(args.config_path))
+    Shelve.set_database_path(os.path.join(os.path.expanduser(args.config_path), args.db_filename))
 
     zconf = advertise_service(args.instance_name, args.ip_address, int(args.port))
 
     app = create_app()
-    uvicorn.run(app, host=args.ip_address, port=int(args.port))
+    uvicorn.run(app, host=args.ip_address, port=int(args.port), loop="asyncio")
 
 if __name__ == "__main__":
     main()
