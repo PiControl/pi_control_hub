@@ -32,7 +32,7 @@ setup(
         'zeroconf>=0.131.0',
         'cachetools>=5.3.2',
         'pi_control_hub_api @ git+https://github.com/PiControl/pi_control_hub_api.git@0.2.0#egg=pi_control_hub_api',
-        'pi_control_hub_driver_api @ git+https://github.com/PiControl/pi_control_hub_driver_api.git@0.3.2#egg=pi_control_hub_driver_api',
+        'pi_control_hub_driver_api @ git+https://github.com/PiControl/pi_control_hub_driver_api.git@0.3.4#egg=pi_control_hub_driver_api',
     ],
     entry_points={
         'console_scripts': [

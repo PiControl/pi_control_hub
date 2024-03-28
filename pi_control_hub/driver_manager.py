@@ -14,11 +14,15 @@
    limitations under the License.
 """
 
-from typing import List
+from typing import List, Tuple
 from cachetools import TTLCache
+import pi_control_hub_driver_api
 from pi_control_hub_driver_api import installed_drivers
 from pi_control_hub_driver_api import DeviceDriverDescriptor
 from pi_control_hub_driver_api import DeviceInfo
+from pi_control_hub_driver_api import DeviceCommand
+from pi_control_hub_driver_api import DeviceDriverException
+from pi_control_hub.database import InvalidKeyException, PairedDevice, Shelve
 from pi_control_hub.design_patterns import SingletonMeta
 
 
@@ -29,6 +33,28 @@ class DriverNotFoundException(Exception):
 
     def __str__(self) -> str:
         return f"The driver with the ID '{self._driver_id}' is not installed."
+
+class DeviceNotFoundException(Exception):
+    """Exception that is thrown, if a device is not available."""
+    def __init__(self, driver_id: str = None, device_id: str = None, message: str = None):
+        self._driver_id = driver_id
+        self._device_id = device_id
+        self._message = message
+
+    def __str__(self) -> str:
+        if self._message is not None:
+            return self._message
+        return f"The driver with the ID '{self._driver_id}' doesn't find a device with ID '{self._device_id}'."
+
+class PairingException(Exception):
+    """Exception that is thrown in case of an error during pairing."""
+    def __init__(self, driver_id: str, device_id: str, pairing_id: str):
+        self._driver_id = driver_id
+        self._device_id = device_id
+        self._pairing_id = pairing_id
+
+    def __str__(self) -> str:
+        return f"Error while finalizing pairing for pairing ID '{self._pairing_id}' and driver ID '{self._driver_id}', device ID '{self._device_id}'"
 
 
 class DriverManager(metaclass=SingletonMeta):
@@ -59,7 +85,7 @@ class DriverManager(metaclass=SingletonMeta):
     def read_devices(self, driver_id: str) -> List[DeviceInfo]:
         """Read the devices from a driver."""
         cache_key = f"devices({driver_id})"
-        
+
         if cache_key in self._cache:
             return self._cache[cache_key]
 
@@ -67,3 +93,100 @@ class DriverManager(metaclass=SingletonMeta):
         devices = driver_descriptor.get_devices()
         self._cache[cache_key] = devices
         return devices
+
+    def retrieve_driver_and_device(self, driver_id: str, device_id: str) -> Tuple[DeviceDriverDescriptor, DeviceInfo]:
+        """Retrieve the device info for the device identified by a driver ID and device ID."""
+        driver = self.retrieve_driver(driver_id)
+        devices = list(filter(lambda d: d.device_id == device_id, self.read_devices(driver_id)))
+        if not devices or len(devices) == 0:
+            raise DeviceNotFoundException(driver_id=driver_id, device_id=device_id)
+        return driver, devices[0]
+
+    def start_pairing(self, driver_id: str, device_id: str, remote_name: str) -> Tuple[str, bool]:
+        """Start the pairing process of the given device with the device driver descriptor."""
+        driver, device = self.retrieve_driver_and_device(driver_id, device_id)
+        return driver.start_pairing(
+            device_info=device,
+            remote_name=remote_name)
+
+    def finalize_pairing(
+            self,
+            driver_id: str,
+            device_id: str,
+            pairing_request_id: str,
+            credentials: str,
+            device_provides_pin: bool) -> bool:
+        """Finalize the pairing process."""
+        try:
+            driver, device = self.retrieve_driver_and_device(driver_id, device_id)
+            paired =  driver.finalize_pairing(
+                pairing_request=pairing_request_id,
+                credentials=credentials,
+                device_provides_pin=device_provides_pin)
+            if paired:
+                paired_device = PairedDevice(
+                    driver_id=driver_id,
+                    device_id=device_id,
+                    device_name=device.name)
+                Shelve().save(paired_device.key, paired_device)
+            return paired
+        except (DeviceDriverException, InvalidKeyException) as ex:
+            raise PairingException(driver_id, device_id, pairing_request_id) from ex
+
+    @property
+    def paired_devices(self) -> List[PairedDevice]:
+        """All paired devices"""
+        return PairedDevice.load_all(Shelve())
+
+    def get_paired_device(self, pairing_id: str) -> PairedDevice:
+        """Load the paired device with the given pairing ID."""
+        try:
+            return Shelve().load(PairedDevice.key_from_pairing_id(pairing_id))
+        except KeyError as ex:
+            raise DeviceNotFoundException(f"The device with the pairing ID '{pairing_id}' wasn't found.") from ex
+
+    def unpair_device(self, pairing_id: str):
+        """Deletes a device pairing"""
+        try:
+            Shelve().delete(PairedDevice.key_from_pairing_id(pairing_id))
+        except (KeyError, pi_control_hub_driver_api.DeviceNotFoundException) as ex:
+            raise DeviceNotFoundException(f"The device with the pairing ID '{pairing_id}' wasn't found.") from ex
+
+    def read_device_commands(self, pairing_id: str) -> List[DeviceCommand]:
+        """Reads the commands provided by the given paired device"""
+        try:
+            paired_device = self.get_paired_device(pairing_id)
+            driver, device = self.retrieve_driver_and_device(
+                paired_device.driver_id,
+                paired_device.device_id)
+            device_instance = driver.create_device_instance(device.device_id)
+            return device_instance.get_commands()
+        except KeyError as ex:
+            raise DeviceNotFoundException(f"The device with the pairing ID '{pairing_id}' wasn't found.") from ex
+
+    def get_remote_layout(self, pairing_id: str) -> Tuple[int, int, List[List[int]]]:
+        """"Reads the remote layout"""
+        try:
+            paired_device = self.get_paired_device(pairing_id)
+            driver, device = self.retrieve_driver_and_device(
+                paired_device.driver_id,
+                paired_device.device_id)
+            device_instance = driver.create_device_instance(device.device_id)
+            width, height = device_instance.remote_layout_size
+            buttons = device_instance.remote_layout
+            return width, height, buttons
+        except KeyError as ex:
+            raise DeviceNotFoundException(f"The device with the pairing ID '{pairing_id}' wasn't found.") from ex
+
+    def execute_device_command(self, pairing_id: str, command_id: int):
+        """Execute the command with the given ID."""
+        try:
+            paired_device = self.get_paired_device(pairing_id)
+            driver, device = self.retrieve_driver_and_device(
+                paired_device.driver_id,
+                paired_device.device_id)
+            device_instance = driver.create_device_instance(device.device_id)
+            device_command = device_instance.get_command(command_id)
+            device_instance.execute(device_command)
+        except KeyError as ex:
+            raise DeviceNotFoundException(f"The device with the pairing ID '{pairing_id}' wasn't found.") from ex

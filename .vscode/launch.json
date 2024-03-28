@@ -10,7 +10,8 @@
             "module": "pi_control_hub.main",
             "args": [
                 "--config-path=~/temp/pi-control-hub"
-            ]
+            ],
+            "justMyCode": false
         }
     ]
 }

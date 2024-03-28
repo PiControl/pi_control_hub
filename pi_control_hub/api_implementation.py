@@ -14,6 +14,7 @@
    limitations under the License.
 """
 
+import base64
 from typing import List
 
 from fastapi import HTTPException
@@ -27,9 +28,10 @@ from pi_control_hub_api.models.paired_device import PairedDevice
 from pi_control_hub_api.models.remote_layout import RemoteLayout
 from pi_control_hub_api.models.start_pairing_request import StartPairingRequest
 from pi_control_hub_api.models.start_pairing_response import StartPairingResponse
+from pydantic import StrictBytes
 
 from pi_control_hub.design_patterns import SingletonMeta
-from pi_control_hub.driver_manager import DriverManager, DriverNotFoundException
+from pi_control_hub.driver_manager import DeviceNotFoundException, DriverManager, DriverNotFoundException, PairingException
 
 class PiControlHubApi(BaseDefaultApi, metaclass=SingletonMeta):
     """Implementation of the PiControl Hub REST API."""
@@ -71,8 +73,18 @@ class PiControlHubApi(BaseDefaultApi, metaclass=SingletonMeta):
         start_pairing_request: StartPairingRequest,
     ) -> StartPairingResponse:
         """Start the pairing process for the device with the given device ID."""
-        # TODO
-        return None
+        try:
+            pairing_request, device_provides_pin = DriverManager().start_pairing(
+                driver_id=driverId,
+                device_id=deviceId,
+                remote_name=start_pairing_request.remote_name)
+            return StartPairingResponse(
+                pairingRequest=pairing_request,
+                deviceProvidesPin=device_provides_pin)
+        except DriverNotFoundException as ex:
+            raise HTTPException(status_code=404, detail=str(ex)) from ex
+        except DeviceNotFoundException as ex:
+            raise HTTPException(status_code=404, detail=str(ex)) from ex
 
     def finalize_pairing(
         self,
@@ -82,35 +94,79 @@ class PiControlHubApi(BaseDefaultApi, metaclass=SingletonMeta):
         finalize_pairing_request: FinalizePairingRequest,
     ) -> FinalizePairingResponse:
         """Finalize the pairing process for the device with the given device ID."""
-        # TODO
-        return None
+        try:
+            paired = DriverManager().finalize_pairing(
+                driver_id=driverId,
+                device_id=deviceId,
+                pairing_request_id=pairingRequestId,
+                credentials=finalize_pairing_request.pin,
+                device_provides_pin=finalize_pairing_request.device_provides_pin)
+            return FinalizePairingResponse(deviceHasPaired=paired)
+        except DriverNotFoundException as ex:
+            raise HTTPException(status_code=404, detail=str(ex)) from ex
+        except DeviceNotFoundException as ex:
+            raise HTTPException(status_code=404, detail=str(ex)) from ex
+        except PairingException as ex:
+            raise HTTPException(status_code=400, detail=str(ex)) from ex
 
     def read_paired_devices(self) -> List[PairedDevice]:
         """Read the list of paired devices."""
-        # TODO
-        return []
+        return list(
+            map(
+                lambda d: PairedDevice(
+                    pairingId=d.pairing_id,
+                    driverId=d.driver_id,
+                    deviceId=d.device_id,
+                    deviceName=d.device_name
+                ),
+                DriverManager().paired_devices))
 
     def unpair_device(self,pairingId: str) -> None:
         """Unpair the device."""
-        # TODO
-        return None
+        try:
+            DriverManager().unpair_device(pairingId)
+        except DeviceNotFoundException as ex:
+            raise HTTPException(status_code=404, detail=str(ex)) from ex
 
     def read_device_commands(self, pairingId: str) -> List[DeviceCommand]:
         """Get the commands supported by the device."""
-        # TODO
-        return []
+        try:
+            driver_manager = DriverManager()
+            paired_device = driver_manager.get_paired_device(pairingId)
+            commands = list(
+                map(
+                    lambda c: DeviceCommand(
+                        pairing_id=pairingId,
+                        driver_id=paired_device.driver_id,
+                        device_id=paired_device.device_id,
+                        command_id=c.id,
+                        name=c.title,
+                        icon=base64.b64encode(c.icon).decode('ascii'),
+                    ),
+                    driver_manager.read_device_commands(pairingId)))
+            return commands
+        except DeviceNotFoundException as ex:
+            raise HTTPException(status_code=404, detail=str(ex)) from ex
 
     def read_device_remote_layout(self,pairingId: str) -> RemoteLayout:
         """Get the layout of the remote control for the device."""
-        # TODO
-        return None
+        try:
+            driver_manager = DriverManager()
+            width, height, buttons = driver_manager.get_remote_layout(pairingId)
+            return RemoteLayout(width=width, height=height, buttons=buttons)
+        except DeviceNotFoundException as ex:
+            raise HTTPException(status_code=404, detail=str(ex)) from ex
 
-    def execute_device_command(self, pairingId: str, commandId: int) -> None:
+    def execute_device_command(self, pairingId: str, commandId: int) -> int:
         """Execute the command on the paired device."""
-        # TODO
-        return None
+        try:
+            DriverManager().execute_device_command(pairingId, commandId)
+            raise HTTPException(status_code=204, detail="All is good")
+        except DeviceNotFoundException as ex:
+            raise HTTPException(status_code=404, detail=str(ex)) from ex
+
 
     def is_device_ready(self, pairingId: str) -> bool:
         """Check whether the device is ready for executing commands."""
         # TODO
-        return False
+        return None

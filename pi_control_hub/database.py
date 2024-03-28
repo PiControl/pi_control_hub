@@ -42,21 +42,21 @@ class Shelve(metaclass=SingletonMeta):
     def __del__(self):
         self._db.close()
 
-    def __shelf(self) -> shelve.Shelf[Any]:
+    def open_shelf(self) -> shelve.Shelf[Any]:
         """Open the shelf"""
-        return shelve.open(Shelve.__database_path)
+        return shelve.open(Shelve.__database_path, flag="c")
 
     def load(self, key: dict) -> ENTITY:
         """Load the object for the given key. Raises a KeyError if there
         is no such key."""
         key_str = json.dumps(key)
-        with self.__shelf() as db:
+        with self.open_shelf() as db:
             return db[key_str]
 
     def save(self, key: dict, entity: ENTITY):
         """Save the given entity under the key."""
         key_str = json.dumps(key)
-        with self.__shelf() as db:
+        with self.open_shelf() as db:
             db[key_str] = entity
             db.sync()
 
@@ -64,12 +64,12 @@ class Shelve(metaclass=SingletonMeta):
         """Delete the entity with the given key. Raises KeyError
         if there is no such key."""
         key_str = json.dumps(key)
-        with self.__shelf() as db:
+        with self.open_shelf() as db:
             del db[key_str]
 
     def keys(self) -> List[str]:
         """Returns a list with all keys. Might be slow."""
-        with self.__shelf() as db:
+        with self.open_shelf() as db:
             return list(db.keys())
 
 
@@ -90,12 +90,32 @@ class PairedDevice:
         return f"{self._driver_id}.{self._device_id}"
 
     @property
+    def driver_id(self) -> str:
+        """Returns the driver ID."""
+        return self._driver_id
+
+    @property
+    def device_id(self) -> str:
+        """Returns the device ID."""
+        return self._device_id
+
+    @property
+    def device_name(self) -> str:
+        """Returns the device name."""
+        return self._device_name
+
+    @property
     def key(self) -> dict:
         """Returns the key for this paired device object.
         Throws an InvalidKeyException, if one key component is None."""
+        return PairedDevice.key_from_pairing_id(self.pairing_id)
+
+    @staticmethod
+    def key_from_pairing_id(pairing_id: str) -> dict:
+        """Returns the key for a pairing ID."""
         return {
-            "class": type(self).__name__,
-            "pairing_id": self.pairing_id
+            "class": PairedDevice.__name__,
+            "pairing_id": pairing_id
         }
 
     @staticmethod
