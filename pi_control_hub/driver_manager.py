@@ -19,6 +19,7 @@ from cachetools import TTLCache
 import pi_control_hub_driver_api
 from pi_control_hub_driver_api import installed_drivers
 from pi_control_hub_driver_api import DeviceDriverDescriptor
+from pi_control_hub_driver_api import DeviceDriver
 from pi_control_hub_driver_api import DeviceInfo
 from pi_control_hub_driver_api import DeviceCommand
 from pi_control_hub_driver_api import DeviceDriverException
@@ -152,26 +153,38 @@ class DriverManager(metaclass=SingletonMeta):
         except (KeyError, pi_control_hub_driver_api.DeviceNotFoundException) as ex:
             raise DeviceNotFoundException(f"The device with the pairing ID '{pairing_id}' wasn't found.") from ex
 
+    def device_instance_for_pairing_id(self, pairing_id: str) -> DeviceDriver:
+        if pairing_id in self._cache:
+            return self._cache[pairing_id]
+        paired_device = self.get_paired_device(pairing_id)
+        driver, device = self.retrieve_driver_and_device(
+            paired_device.driver_id,
+            paired_device.device_id)
+        device_instance = driver.create_device_instance(device.device_id)
+        self._cache[pairing_id] = device_instance
+        return device_instance
+
     def read_device_commands(self, pairing_id: str) -> List[DeviceCommand]:
         """Reads the commands provided by the given paired device"""
         try:
-            paired_device = self.get_paired_device(pairing_id)
+            """paired_device = self.get_paired_device(pairing_id)
             driver, device = self.retrieve_driver_and_device(
                 paired_device.driver_id,
                 paired_device.device_id)
-            device_instance = driver.create_device_instance(device.device_id)
-            return device_instance.get_commands()
+            device_instance = driver.create_device_instance(device.device_id)"""
+            return self.device_instance_for_pairing_id(pairing_id).get_commands()
         except KeyError as ex:
             raise DeviceNotFoundException(f"The device with the pairing ID '{pairing_id}' wasn't found.") from ex
 
     def get_remote_layout(self, pairing_id: str) -> Tuple[int, int, List[List[int]]]:
         """"Reads the remote layout"""
         try:
-            paired_device = self.get_paired_device(pairing_id)
+            """paired_device = self.get_paired_device(pairing_id)
             driver, device = self.retrieve_driver_and_device(
                 paired_device.driver_id,
                 paired_device.device_id)
-            device_instance = driver.create_device_instance(device.device_id)
+            device_instance = driver.create_device_instance(device.device_id)"""
+            device_instance = self.device_instance_for_pairing_id(pairing_id)
             width, height = device_instance.remote_layout_size
             buttons = device_instance.remote_layout
             return width, height, buttons
@@ -181,11 +194,12 @@ class DriverManager(metaclass=SingletonMeta):
     def execute_device_command(self, pairing_id: str, command_id: int):
         """Execute the command with the given ID."""
         try:
-            paired_device = self.get_paired_device(pairing_id)
+            """paired_device = self.get_paired_device(pairing_id)
             driver, device = self.retrieve_driver_and_device(
                 paired_device.driver_id,
                 paired_device.device_id)
-            device_instance = driver.create_device_instance(device.device_id)
+            device_instance = driver.create_device_instance(device.device_id)"""
+            device_instance = self.device_instance_for_pairing_id(pairing_id)
             device_command = device_instance.get_command(command_id)
             device_instance.execute(device_command)
         except KeyError as ex:
