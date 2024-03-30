@@ -28,7 +28,6 @@ from pi_control_hub_api.models.paired_device import PairedDevice
 from pi_control_hub_api.models.remote_layout import RemoteLayout
 from pi_control_hub_api.models.start_pairing_request import StartPairingRequest
 from pi_control_hub_api.models.start_pairing_response import StartPairingResponse
-from pydantic import StrictBytes
 
 from pi_control_hub.design_patterns import SingletonMeta
 from pi_control_hub.driver_manager import DeviceNotFoundException, DriverManager, DriverNotFoundException, PairingException
