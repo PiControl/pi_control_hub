@@ -16,14 +16,14 @@
 
 from threading import Thread
 from typing import List, Tuple
-from cachetools import TTLCache
+
 import pi_control_hub_driver_api
-from pi_control_hub_driver_api import installed_drivers
-from pi_control_hub_driver_api import DeviceDriverDescriptor
-from pi_control_hub_driver_api import DeviceDriver
-from pi_control_hub_driver_api import DeviceInfo
-from pi_control_hub_driver_api import DeviceCommand
-from pi_control_hub_driver_api import DeviceDriverException
+from cachetools import TTLCache
+from pi_control_hub_driver_api import (DeviceCommand, DeviceDriver,
+                                       DeviceDriverDescriptor,
+                                       DeviceDriverException, DeviceInfo,
+                                       installed_drivers)
+
 from pi_control_hub.database import InvalidKeyException, PairedDevice, Shelve
 from pi_control_hub.design_patterns import SingletonMeta
 

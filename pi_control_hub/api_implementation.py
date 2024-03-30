@@ -22,15 +22,22 @@ from pi_control_hub_api.apis.default_api_base import BaseDefaultApi
 from pi_control_hub_api.models.device_command import DeviceCommand
 from pi_control_hub_api.models.device_driver import DeviceDriver
 from pi_control_hub_api.models.device_info import DeviceInfo
-from pi_control_hub_api.models.finalize_pairing_request import FinalizePairingRequest
-from pi_control_hub_api.models.finalize_pairing_response import FinalizePairingResponse
+from pi_control_hub_api.models.finalize_pairing_request import \
+    FinalizePairingRequest
+from pi_control_hub_api.models.finalize_pairing_response import \
+    FinalizePairingResponse
 from pi_control_hub_api.models.paired_device import PairedDevice
 from pi_control_hub_api.models.remote_layout import RemoteLayout
 from pi_control_hub_api.models.start_pairing_request import StartPairingRequest
-from pi_control_hub_api.models.start_pairing_response import StartPairingResponse
+from pi_control_hub_api.models.start_pairing_response import \
+    StartPairingResponse
 
 from pi_control_hub.design_patterns import SingletonMeta
-from pi_control_hub.driver_manager import DeviceNotFoundException, DriverManager, DriverNotFoundException, PairingException
+from pi_control_hub.driver_manager import (DeviceNotFoundException,
+                                           DriverManager,
+                                           DriverNotFoundException,
+                                           PairingException)
+
 
 class PiControlHubApi(BaseDefaultApi, metaclass=SingletonMeta):
     """Implementation of the PiControl Hub REST API."""

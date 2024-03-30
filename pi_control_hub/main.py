@@ -16,22 +16,20 @@
    limitations under the License.
 """
 
-import os
 import argparse
+import os
 import socket
 import sys
+
 import uvicorn
 import zeroconf
-
 from fastapi import FastAPI
-
 from pi_control_hub_api.apis.default_api import router as DefaultApiRouter
 from pi_control_hub_driver_api import DeviceDriverDescriptor
 
+from pi_control_hub import __version__
+from pi_control_hub.api_implementation import PiControlHubApi
 from pi_control_hub.database import Shelve
-
-from .api_implementation import PiControlHubApi
-from . import __version__
 
 
 def get_ip_address() -> str:
