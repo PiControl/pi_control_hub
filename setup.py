@@ -31,8 +31,8 @@ setup(
         'fastapi==0.109.2',
         'zeroconf>=0.131.0',
         'cachetools>=5.3.2',
-        'pi_control_hub_api @ git+https://github.com/PiControl/pi_control_hub_api.git@async#egg=pi_control_hub_api',
-        'pi_control_hub_driver_api @ git+https://github.com/PiControl/pi_control_hub_driver_api.git@async#egg=pi_control_hub_driver_api',
+        'pi_control_hub_api @ git+https://github.com/PiControl/pi_control_hub_api.git@main#egg=pi_control_hub_api',
+        'pi_control_hub_driver_api @ git+https://github.com/PiControl/pi_control_hub_driver_api.git@main#egg=pi_control_hub_driver_api',
     ],
     entry_points={
         'console_scripts': [
