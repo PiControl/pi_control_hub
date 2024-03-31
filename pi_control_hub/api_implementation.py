@@ -22,23 +22,29 @@ from pi_control_hub_api.apis.default_api_base import BaseDefaultApi
 from pi_control_hub_api.models.device_command import DeviceCommand
 from pi_control_hub_api.models.device_driver import DeviceDriver
 from pi_control_hub_api.models.device_info import DeviceInfo
-from pi_control_hub_api.models.finalize_pairing_request import FinalizePairingRequest
-from pi_control_hub_api.models.finalize_pairing_response import FinalizePairingResponse
+from pi_control_hub_api.models.finalize_pairing_request import \
+    FinalizePairingRequest
+from pi_control_hub_api.models.finalize_pairing_response import \
+    FinalizePairingResponse
 from pi_control_hub_api.models.paired_device import PairedDevice
 from pi_control_hub_api.models.remote_layout import RemoteLayout
 from pi_control_hub_api.models.start_pairing_request import StartPairingRequest
-from pi_control_hub_api.models.start_pairing_response import StartPairingResponse
-from pydantic import StrictBytes
+from pi_control_hub_api.models.start_pairing_response import \
+    StartPairingResponse
 
 from pi_control_hub.design_patterns import SingletonMeta
-from pi_control_hub.driver_manager import DeviceNotFoundException, DriverManager, DriverNotFoundException, PairingException
+from pi_control_hub.driver_manager import (DeviceNotFoundException,
+                                           DriverManager,
+                                           DriverNotFoundException,
+                                           PairingException)
+
 
 class PiControlHubApi(BaseDefaultApi, metaclass=SingletonMeta):
     """Implementation of the PiControl Hub REST API."""
 
-    def read_device_drivers(self) -> List[DeviceDriver]:
+    async def read_device_drivers(self) -> List[DeviceDriver]:
         """Read all installed device drivers"""
-        driver_descriptors = DriverManager().read_drivers()
+        driver_descriptors = await DriverManager().read_drivers()
         drivers = map(
             lambda descriptor: DeviceDriver(
                 driverId=str(descriptor.driver_id),
@@ -50,7 +56,7 @@ class PiControlHubApi(BaseDefaultApi, metaclass=SingletonMeta):
         )
         return list(drivers)
 
-    def read_devices(self, driverId: str) -> List[DeviceInfo]:
+    async def read_devices(self, driverId: str) -> List[DeviceInfo]:
         """Read all devices that are supported by the driver with the given driver ID"""
         try:
             result = list(
@@ -59,14 +65,14 @@ class PiControlHubApi(BaseDefaultApi, metaclass=SingletonMeta):
                         deviceId=dinfo.device_id,
                         name=dinfo.name,
                     ),
-                    DriverManager().read_devices(driverId),
+                    await DriverManager().read_devices(driverId),
                 )
             )
             return result
         except DriverNotFoundException as ex:
             raise HTTPException(status_code=404, detail=str(ex)) from ex
 
-    def start_pairing(
+    async def start_pairing(
         self,
         driverId: str,
         deviceId: str,
@@ -74,7 +80,7 @@ class PiControlHubApi(BaseDefaultApi, metaclass=SingletonMeta):
     ) -> StartPairingResponse:
         """Start the pairing process for the device with the given device ID."""
         try:
-            pairing_request, device_provides_pin = DriverManager().start_pairing(
+            pairing_request, device_provides_pin = await DriverManager().start_pairing(
                 driver_id=driverId,
                 device_id=deviceId,
                 remote_name=start_pairing_request.remote_name)
@@ -86,7 +92,7 @@ class PiControlHubApi(BaseDefaultApi, metaclass=SingletonMeta):
         except DeviceNotFoundException as ex:
             raise HTTPException(status_code=404, detail=str(ex)) from ex
 
-    def finalize_pairing(
+    async def finalize_pairing(
         self,
         driverId: str,
         deviceId: str,
@@ -109,7 +115,7 @@ class PiControlHubApi(BaseDefaultApi, metaclass=SingletonMeta):
         except PairingException as ex:
             raise HTTPException(status_code=400, detail=str(ex)) from ex
 
-    def read_paired_devices(self) -> List[PairedDevice]:
+    async def read_paired_devices(self) -> List[PairedDevice]:
         """Read the list of paired devices."""
         return list(
             map(
@@ -121,14 +127,14 @@ class PiControlHubApi(BaseDefaultApi, metaclass=SingletonMeta):
                 ),
                 DriverManager().paired_devices))
 
-    def unpair_device(self,pairingId: str) -> None:
+    async def unpair_device(self,pairingId: str) -> None:
         """Unpair the device."""
         try:
             DriverManager().unpair_device(pairingId)
         except DeviceNotFoundException as ex:
             raise HTTPException(status_code=404, detail=str(ex)) from ex
 
-    def read_device_commands(self, pairingId: str) -> List[DeviceCommand]:
+    async def read_device_commands(self, pairingId: str) -> List[DeviceCommand]:
         """Get the commands supported by the device."""
         try:
             driver_manager = DriverManager()
@@ -143,30 +149,29 @@ class PiControlHubApi(BaseDefaultApi, metaclass=SingletonMeta):
                         name=c.title,
                         icon=base64.b64encode(c.icon).decode('ascii'),
                     ),
-                    driver_manager.read_device_commands(pairingId)))
+                    await driver_manager.read_device_commands(pairingId)))
             return commands
         except DeviceNotFoundException as ex:
             raise HTTPException(status_code=404, detail=str(ex)) from ex
 
-    def read_device_remote_layout(self,pairingId: str) -> RemoteLayout:
+    async def read_device_remote_layout(self,pairingId: str) -> RemoteLayout:
         """Get the layout of the remote control for the device."""
         try:
             driver_manager = DriverManager()
-            width, height, buttons = driver_manager.get_remote_layout(pairingId)
+            width, height, buttons = await driver_manager.get_remote_layout(pairingId)
             return RemoteLayout(width=width, height=height, buttons=buttons)
         except DeviceNotFoundException as ex:
             raise HTTPException(status_code=404, detail=str(ex)) from ex
 
-    def execute_device_command(self, pairingId: str, commandId: int) -> int:
+    async def execute_device_command(self, pairingId: str, commandId: int) -> int:
         """Execute the command on the paired device."""
         try:
-            DriverManager().execute_device_command(pairingId, commandId)
+            await DriverManager().execute_device_command(pairingId, commandId)
             raise HTTPException(status_code=204, detail="All is good")
         except DeviceNotFoundException as ex:
             raise HTTPException(status_code=404, detail=str(ex)) from ex
 
 
-    def is_device_ready(self, pairingId: str) -> bool:
+    async def is_device_ready(self, pairingId: str) -> bool:
         """Check whether the device is ready for executing commands."""
-        # TODO
-        return None
+        return await DriverManager().is_device_ready(pairingId)

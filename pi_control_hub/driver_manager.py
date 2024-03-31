@@ -14,15 +14,16 @@
    limitations under the License.
 """
 
+from threading import Thread
 from typing import List, Tuple
-from cachetools import TTLCache
+
 import pi_control_hub_driver_api
-from pi_control_hub_driver_api import installed_drivers
-from pi_control_hub_driver_api import DeviceDriverDescriptor
-from pi_control_hub_driver_api import DeviceDriver
-from pi_control_hub_driver_api import DeviceInfo
-from pi_control_hub_driver_api import DeviceCommand
-from pi_control_hub_driver_api import DeviceDriverException
+from cachetools import TTLCache
+from pi_control_hub_driver_api import (DeviceCommand, DeviceDriver,
+                                       DeviceDriverDescriptor,
+                                       DeviceDriverException, DeviceInfo,
+                                       installed_drivers)
+
 from pi_control_hub.database import InvalidKeyException, PairedDevice, Shelve
 from pi_control_hub.design_patterns import SingletonMeta
 
@@ -66,51 +67,51 @@ class DriverManager(metaclass=SingletonMeta):
     def __init__(self):
         self._cache = TTLCache(maxsize=10, ttl=300)
 
-    def read_drivers(self) -> List[DeviceDriverDescriptor]:
+    async def read_drivers(self) -> List[DeviceDriverDescriptor]:
         """This method returns DeviceDriverDescriptor instances of the
         installed drivers."""
         return installed_drivers()
 
-    def retrieve_driver(self, driver_id: str) -> DeviceDriverDescriptor:
+    async def retrieve_driver(self, driver_id: str) -> DeviceDriverDescriptor:
         """Return the driver descriptor with the given ID."""
         result = list(
             filter(
                 lambda descriptor: str(descriptor.driver_id) == driver_id,
-                self.read_drivers(),
+                await self.read_drivers(),
             )
         )
         if len(result) > 0:
             return result[0]
         raise DriverNotFoundException(driver_id)
 
-    def read_devices(self, driver_id: str) -> List[DeviceInfo]:
+    async def read_devices(self, driver_id: str) -> List[DeviceInfo]:
         """Read the devices from a driver."""
         cache_key = f"devices({driver_id})"
 
         if cache_key in self._cache:
             return self._cache[cache_key]
 
-        driver_descriptor = self.retrieve_driver(driver_id)
-        devices = driver_descriptor.get_devices()
+        driver_descriptor = await self.retrieve_driver(driver_id)
+        devices = await driver_descriptor.get_devices()
         self._cache[cache_key] = devices
         return devices
 
-    def retrieve_driver_and_device(self, driver_id: str, device_id: str) -> Tuple[DeviceDriverDescriptor, DeviceInfo]:
+    async def retrieve_driver_and_device(self, driver_id: str, device_id: str) -> Tuple[DeviceDriverDescriptor, DeviceInfo]:
         """Retrieve the device info for the device identified by a driver ID and device ID."""
-        driver = self.retrieve_driver(driver_id)
-        devices = list(filter(lambda d: d.device_id == device_id, self.read_devices(driver_id)))
+        driver = await self.retrieve_driver(driver_id)
+        devices = list(filter(lambda d: d.device_id == device_id, await self.read_devices(driver_id)))
         if not devices or len(devices) == 0:
             raise DeviceNotFoundException(driver_id=driver_id, device_id=device_id)
         return driver, devices[0]
 
-    def start_pairing(self, driver_id: str, device_id: str, remote_name: str) -> Tuple[str, bool]:
+    async def start_pairing(self, driver_id: str, device_id: str, remote_name: str) -> Tuple[str, bool]:
         """Start the pairing process of the given device with the device driver descriptor."""
-        driver, device = self.retrieve_driver_and_device(driver_id, device_id)
-        return driver.start_pairing(
+        driver, device = await self.retrieve_driver_and_device(driver_id, device_id)
+        return await driver.start_pairing(
             device_info=device,
             remote_name=remote_name)
 
-    def finalize_pairing(
+    async def finalize_pairing(
             self,
             driver_id: str,
             device_id: str,
@@ -119,8 +120,8 @@ class DriverManager(metaclass=SingletonMeta):
             device_provides_pin: bool) -> bool:
         """Finalize the pairing process."""
         try:
-            driver, device = self.retrieve_driver_and_device(driver_id, device_id)
-            paired =  driver.finalize_pairing(
+            driver, device = await self.retrieve_driver_and_device(driver_id, device_id)
+            paired =  await driver.finalize_pairing(
                 pairing_request=pairing_request_id,
                 credentials=credentials,
                 device_provides_pin=device_provides_pin)
@@ -153,54 +154,48 @@ class DriverManager(metaclass=SingletonMeta):
         except (KeyError, pi_control_hub_driver_api.DeviceNotFoundException) as ex:
             raise DeviceNotFoundException(f"The device with the pairing ID '{pairing_id}' wasn't found.") from ex
 
-    def device_instance_for_pairing_id(self, pairing_id: str) -> DeviceDriver:
+    async def device_instance_for_pairing_id(self, pairing_id: str) -> DeviceDriver:
         if pairing_id in self._cache:
             return self._cache[pairing_id]
         paired_device = self.get_paired_device(pairing_id)
-        driver, device = self.retrieve_driver_and_device(
+        driver, device = await self.retrieve_driver_and_device(
             paired_device.driver_id,
             paired_device.device_id)
-        device_instance = driver.create_device_instance(device.device_id)
+        device_instance = await driver.create_device_instance(device.device_id)
         self._cache[pairing_id] = device_instance
         return device_instance
 
-    def read_device_commands(self, pairing_id: str) -> List[DeviceCommand]:
+    async def read_device_commands(self, pairing_id: str) -> List[DeviceCommand]:
         """Reads the commands provided by the given paired device"""
         try:
-            """paired_device = self.get_paired_device(pairing_id)
-            driver, device = self.retrieve_driver_and_device(
-                paired_device.driver_id,
-                paired_device.device_id)
-            device_instance = driver.create_device_instance(device.device_id)"""
-            return self.device_instance_for_pairing_id(pairing_id).get_commands()
+            device_instance = await self.device_instance_for_pairing_id(pairing_id)
+            commands = await device_instance.get_commands()
+            return commands
         except KeyError as ex:
             raise DeviceNotFoundException(f"The device with the pairing ID '{pairing_id}' wasn't found.") from ex
 
-    def get_remote_layout(self, pairing_id: str) -> Tuple[int, int, List[List[int]]]:
+    async def get_remote_layout(self, pairing_id: str) -> Tuple[int, int, List[List[int]]]:
         """"Reads the remote layout"""
         try:
-            """paired_device = self.get_paired_device(pairing_id)
-            driver, device = self.retrieve_driver_and_device(
-                paired_device.driver_id,
-                paired_device.device_id)
-            device_instance = driver.create_device_instance(device.device_id)"""
-            device_instance = self.device_instance_for_pairing_id(pairing_id)
+            device_instance = await self.device_instance_for_pairing_id(pairing_id)
             width, height = device_instance.remote_layout_size
             buttons = device_instance.remote_layout
             return width, height, buttons
         except KeyError as ex:
             raise DeviceNotFoundException(f"The device with the pairing ID '{pairing_id}' wasn't found.") from ex
 
-    def execute_device_command(self, pairing_id: str, command_id: int):
+    async def execute_device_command(self, pairing_id: str, command_id: int):
         """Execute the command with the given ID."""
         try:
-            """paired_device = self.get_paired_device(pairing_id)
-            driver, device = self.retrieve_driver_and_device(
-                paired_device.driver_id,
-                paired_device.device_id)
-            device_instance = driver.create_device_instance(device.device_id)"""
-            device_instance = self.device_instance_for_pairing_id(pairing_id)
-            device_command = device_instance.get_command(command_id)
-            device_instance.execute(device_command)
+            device_instance = await self.device_instance_for_pairing_id(pairing_id)
+            device_command = await device_instance.get_command(command_id)
+            await device_instance.execute(device_command)
+        except KeyError as ex:
+            raise DeviceNotFoundException(f"The device with the pairing ID '{pairing_id}' wasn't found.") from ex
+
+    async def is_device_ready(self, pairing_id: str) -> bool:
+        try:
+            device_instance = await self.device_instance_for_pairing_id(pairing_id)
+            return await device_instance.is_device_ready
         except KeyError as ex:
             raise DeviceNotFoundException(f"The device with the pairing ID '{pairing_id}' wasn't found.") from ex
