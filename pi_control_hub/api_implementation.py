@@ -101,7 +101,7 @@ class PiControlHubApi(BaseDefaultApi, metaclass=SingletonMeta):
     ) -> FinalizePairingResponse:
         """Finalize the pairing process for the device with the given device ID."""
         try:
-            paired = DriverManager().finalize_pairing(
+            paired = await DriverManager().finalize_pairing(
                 driver_id=driverId,
                 device_id=deviceId,
                 pairing_request_id=pairingRequestId,
