@@ -75,6 +75,18 @@ def create_argsparser() -> argparse.ArgumentParser:
         default="Pi Control Hub",
         help="The name of this instance.",
     )
+    parser.add_argument(
+        "--ir-gpio-in",
+        action="store",
+        default=0,
+        help="The GPIO Pin of a connected IR receiver.",
+    )
+    parser.add_argument(
+        "--ir-gpio-out",
+        action="store",
+        default=0,
+        help="The GPIO Pin of a connected IR transmitter.",
+    )
     return parser
 
 
@@ -128,6 +140,8 @@ def main():
     validate_args(args)
 
     DeviceDriverDescriptor.set_config_path(os.path.expanduser(args.config_path))
+    DeviceDriverDescriptor.set_ir_gpio_in(args.ir_gpio_in)
+    DeviceDriverDescriptor.set_ir_gpio_out(args.ir_gpio_out)
     Shelve.set_database_path(os.path.join(os.path.expanduser(args.config_path), args.db_filename))
 
     zconf = advertise_service(args.instance_name, args.ip_address, int(args.port))
